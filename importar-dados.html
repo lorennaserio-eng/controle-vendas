@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Importar dados antigos</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="modal-overlay active" id="authOverlay">
+  <div class="modal-box">
+    <h2>Entrar para importar</h2>
+    <form id="authForm">
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="authEmail" required>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="authPassword" required>
+      </div>
+      <button type="submit" class="btn" style="width:100%;">Entrar</button>
+    </form>
+    <p id="authMessage" style="color:var(--danger);font-size:13px;"></p>
+  </div>
+</div>
+
+<main style="display:none;" id="importRoot">
+  <div class="panel">
+    <h2>📥 Importar dados do app antigo (uma única vez)</h2>
+    <p class="hint">
+      1) Abra o arquivo antigo <code>controle-de-vendas.html</code> no navegador.<br>
+      2) Aperte F12 para abrir o console do desenvolvedor, clique na aba "Console".<br>
+      3) Cole o comando abaixo e aperte Enter — ele copia seus dados para a área de transferência:
+    </p>
+    <pre style="background:#111;color:#0f0;padding:12px;border-radius:6px;overflow-x:auto;">copy(localStorage.getItem('controleVendas_v1'))</pre>
+    <p class="hint">4) Volte aqui, cole (Ctrl+V) na caixa abaixo e clique em "Importar".</p>
+    <div class="field">
+      <label>Cole aqui os dados copiados</label>
+      <textarea id="payloadInput" style="min-height:200px;"></textarea>
+    </div>
+    <button type="button" class="btn" id="importBtn">Importar dados</button>
+    <p id="importMessage" class="hint" style="margin-top:12px;"></p>
+  </div>
+</main>
+
+<script src="js/supabaseClient.js"></script>
+<script>
+document.getElementById('authForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  const msg = document.getElementById('authMessage');
+  if(error){ msg.textContent = error.message; return; }
+});
+
+async function checkSession(){
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(session){
+    document.getElementById('authOverlay').classList.remove('active');
+    document.getElementById('importRoot').style.display = 'block';
+  }
+}
+supabaseClient.auth.onAuthStateChange(checkSession);
+checkSession();
+
+document.getElementById('importBtn').addEventListener('click', async ()=>{
+  const raw = document.getElementById('payloadInput').value.trim();
+  const msg = document.getElementById('importMessage');
+  msg.style.color = '';
+  if(!raw){ msg.style.color = 'var(--danger)'; msg.textContent = 'Cole os dados copiados do app antigo primeiro.'; return; }
+  let payload;
+  try{
+    payload = JSON.parse(raw);
+  }catch(e){
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Isso não parece um JSON válido. Confira se copiou o texto certinho.';
+    return;
+  }
+  msg.textContent = 'Importando... isso pode levar alguns segundos.';
+  try{
+    const { error } = await supabaseClient.rpc('import_legacy_data', { p_payload: payload });
+    if(error) throw error;
+    msg.style.color = 'var(--primary-dark)';
+    msg.textContent = 'Dados importados com sucesso! Agora é só usar o app normalmente pelo index.html — pode apagar esta página depois.';
+  }catch(err){
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Erro ao importar: ' + err.message;
+  }
+});
+</script>
+</body>
+</html>

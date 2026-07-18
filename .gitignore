@@ -1,0 +1,7 @@
+# Arquivos de teste/sistema
+.synctest
+.DS_Store
+Thumbs.db
+
+# Caso um dia você crie um arquivo de configuração local com dados sensíveis
+config.local.js

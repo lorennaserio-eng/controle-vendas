@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Controle de Vendas</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- TELA DE LOGIN / CADASTRO -->
+<div class="modal-overlay active" id="authOverlay">
+  <div class="modal-box">
+    <h2 id="authTitle">Entrar no Controle de Vendas</h2>
+    <form id="authForm">
+      <input type="hidden" id="authMode" value="login">
+      <div class="field" id="authNameField" style="display:none;">
+        <label>Seu nome</label>
+        <input type="text" id="authName" placeholder="Como a equipe vai te ver nos relatórios">
+      </div>
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="authEmail" required>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="authPassword" minlength="6" required>
+      </div>
+      <button type="submit" class="btn" id="authSubmitBtn" style="width:100%;">Entrar</button>
+    </form>
+    <p id="authMessage"></p>
+    <button type="button" class="hint-link" id="toggleAuthMode">Criar uma conta nova</button>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+
+<header>
+  <h1>🛒 Controle de Vendas</h1>
+  <div id="userBar">
+    <span id="headerDate"></span>
+    <span id="currentUserLabel"></span>
+    <button type="button" id="logoutBtn">Sair</button>
+  </div>
+</header>
+
+<nav>
+  <button data-view="dashboard" class="active">Dashboard</button>
+  <button data-view="produtos">Produtos</button>
+  <button data-view="vendas">Vendas</button>
+  <button data-view="clientes">Clientes</button>
+  <button data-view="pedidos">Pedidos MK</button>
+  <button data-view="relatorios">Relatórios</button>
+  <button data-view="automacao">Automação</button>
+</nav>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view active">
+    <div class="cards" id="dashCards"></div>
+
+    <div class="panel">
+      <h2>🎯 Meta mensal</h2>
+      <div class="row">
+        <div class="field"><label>Meta de faturamento do mês (R$)</label><input type="number" id="monthlyGoalInput" min="0" step="0.01"></div>
+        <div class="field" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;">
+          <button type="button" class="btn" id="saveGoalBtn">Salvar meta</button>
+        </div>
+      </div>
+      <p class="hint" id="goalProgressText"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Vendas nos últimos 14 dias</h2>
+      <div class="chart-wrap"><canvas id="salesChart" height="90"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>Produtos mais vendidos</h2>
+      <table>
+        <thead><tr><th>Produto</th><th>Qtd. vendida</th><th>Faturamento</th></tr></thead>
+        <tbody id="topProductsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>🎂 Aniversariantes do mês</h2>
+      <table>
+        <thead><tr><th>Cliente</th><th>Dia</th><th></th></tr></thead>
+        <tbody id="birthdaysBody"></tbody>
+      </table>
+      <div class="empty" id="birthdaysEmpty" style="display:none;">Nenhum aniversariante cadastrado para este mês.</div>
+    </div>
+
+    <div class="panel">
+      <h2>📣 Campanhas</h2>
+      <form id="campaignForm">
+        <div class="row">
+          <div class="field"><label>Nome da campanha</label><input type="text" id="campaignName" required></div>
+          <div class="field"><label>Início</label><input type="date" id="campaignStart"></div>
+          <div class="field"><label>Fim</label><input type="date" id="campaignEnd"></div>
+        </div>
+        <button type="submit" class="btn">Adicionar campanha</button>
+      </form>
+      <table style="margin-top:14px;">
+        <thead><tr><th>Nome</th><th>Período</th><th>Status</th><th></th></tr></thead>
+        <tbody id="campaignsBody"></tbody>
+      </table>
+      <div class="empty" id="campaignsEmpty" style="display:none;">Nenhuma campanha cadastrada.</div>
+    </div>
+
+    <div class="panel">
+      <h2>🏆 Desempenho da equipe (mês atual)</h2>
+      <table>
+        <thead><tr><th>Vendedor</th><th>Nº de vendas</th><th>Faturamento</th></tr></thead>
+        <tbody id="teamBody"></tbody>
+      </table>
+      <div class="empty" id="teamEmpty" style="display:none;">Nenhuma venda com vendedor identificado neste mês.</div>
+    </div>
+  </section>
+
+  <!-- PRODUTOS -->
+  <section id="view-produtos" class="view">
+    <div class="cards" id="stockSummaryCards"></div>
+
+    <div class="panel">
+      <h2 id="productFormTitle">Novo produto</h2>
+      <form id="productForm">
+        <input type="hidden" id="productId">
+        <div class="row">
+          <div class="field"><label>Nome do produto</label><input type="text" id="productName" required></div>
+          <div class="field"><label>Preço (R$)</label><input type="number" id="productPrice" step="0.01" min="0" required></div>
+          <div class="field"><label>Estoque</label><input type="number" id="productStock" step="1" min="0" required></div>
+          <div class="field"><label>Estoque mínimo (alerta)</label><input type="number" id="productMinStock" step="1" min="0" value="5"></div>
+        </div>
+        <button type="submit" class="btn">Salvar produto</button>
+        <button type="button" class="btn secondary" id="cancelProductEdit" style="display:none;">Cancelar edição</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>Produtos cadastrados</h2>
+      <table>
+        <thead><tr><th>Nome</th><th>Preço</th><th>Estoque</th><th></th></tr></thead>
+        <tbody id="productsBody"></tbody>
+      </table>
+      <div class="empty" id="productsEmpty" style="display:none;">Nenhum produto cadastrado ainda.</div>
+    </div>
+
+    <div class="panel">
+      <h2>📦 Entrada / saída de mercadorias</h2>
+      <form id="stockMovementForm">
+        <div class="row">
+          <div class="field">
+            <label>Produto</label>
+            <select id="movementProduct" required></select>
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select id="movementType">
+              <option value="entrada">Entrada (compra/reposição)</option>
+              <option value="saida">Saída (perda/ajuste)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Quantidade</label>
+            <input type="number" id="movementQty" min="1" value="1" required>
+          </div>
+          <div class="field">
+            <label>Motivo</label>
+            <input type="text" id="movementReason" placeholder="Ex: compra de fornecedor, produto danificado...">
+          </div>
+        </div>
+        <button type="submit" class="btn">Registrar movimentação</button>
+      </form>
+      <table style="margin-top:14px;">
+        <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Motivo</th><th>Estoque após</th></tr></thead>
+        <tbody id="stockMovementsBody"></tbody>
+      </table>
+      <div class="empty" id="stockMovementsEmpty" style="display:none;">Nenhuma movimentação registrada ainda.</div>
+    </div>
+  </section>
+
+  <!-- VENDAS -->
+  <section id="view-vendas" class="view">
+    <div class="panel">
+      <h2>Nova venda</h2>
+      <form id="saleForm">
+        <div class="row">
+          <div class="field">
+            <label>Cliente</label>
+            <select id="saleCustomer"><option value="">Sem cliente identificado</option></select>
+          </div>
+          <div class="field">
+            <label>Forma de pagamento</label>
+            <select id="salePayment">
+              <option>Pix</option>
+              <option>Dinheiro</option>
+              <option>Cartão de crédito</option>
+              <option>Cartão de débito</option>
+              <option>Boleto</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="saleStatus">
+              <option value="Pago">Pago</option>
+              <option value="Pendente">Pendente</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="saleItemsWrap"></div>
+        <button type="button" class="btn secondary small" id="addSaleItem">+ Adicionar produto</button>
+
+        <div class="total-line">Total: R$ <span id="saleTotal">0,00</span></div>
+        <div style="margin-top:12px;">
+          <button type="submit" class="btn">Registrar venda</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Histórico de vendas</h2>
+      <div class="row">
+        <div class="field"><label>Filtrar por status</label>
+          <select id="filterSaleStatus">
+            <option value="">Todos</option>
+            <option value="Pago">Pago</option>
+            <option value="Pendente">Pendente</option>
+          </select>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Pagamento</th><th>Vendedor</th><th>Status</th><th></th></tr></thead>
+        <tbody id="salesBody"></tbody>
+      </table>
+      <div class="empty" id="salesEmpty" style="display:none;">Nenhuma venda registrada ainda.</div>
+    </div>
+  </section>
+
+  <!-- CLIENTES -->
+  <section id="view-clientes" class="view">
+    <div class="panel">
+      <h2 id="customerFormTitle">Novo cliente</h2>
+      <button type="button" class="btn secondary" id="importContactBtn">📱 Importar contato do celular</button>
+      <p class="hint" id="contactApiHint"></p>
+      <form id="customerForm" style="margin-top:14px;">
+        <input type="hidden" id="customerId">
+        <div class="row">
+          <div class="field"><label>Nome</label><input type="text" id="customerName" required></div>
+          <div class="field"><label>Telefone</label><input type="text" id="customerPhone"></div>
+          <div class="field"><label>E-mail</label><input type="email" id="customerEmail"></div>
+          <div class="field"><label>Data de nascimento</label><input type="date" id="customerBirthDate"></div>
+        </div>
+        <button type="submit" class="btn">Salvar cliente</button>
+        <button type="button" class="btn secondary" id="cancelCustomerEdit" style="display:none;">Cancelar edição</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>Clientes cadastrados</h2>
+      <table>
+        <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Aniversário</th><th></th></tr></thead>
+        <tbody id="customersBody"></tbody>
+      </table>
+      <div class="empty" id="customersEmpty" style="display:none;">Nenhum cliente cadastrado ainda.</div>
+    </div>
+  </section>
+
+  <!-- PEDIDOS MARY KAY -->
+  <section id="view-pedidos" class="view">
+    <div class="panel">
+      <p class="hint">O Mary Kay InTouch não oferece exportação automática de pedidos, então essa importação é feita digitando os itens do pedido aqui. Ao registrar, o estoque é atualizado automaticamente (criando o produto se ele ainda não existir) e o pedido entra no seu histórico de compras.</p>
+    </div>
+
+    <div class="cards" id="purchaseSummaryCards"></div>
+
+    <div class="panel">
+      <h2>📥 Novo pedido Mary Kay</h2>
+      <form id="purchaseOrderForm">
+        <div class="row">
+          <div class="field"><label>Data do pedido</label><input type="date" id="poDate"></div>
+          <div class="field"><label>Nº do pedido (opcional)</label><input type="text" id="poNumber" placeholder="Ex: 123456"></div>
+        </div>
+
+        <div id="poItemsWrap"></div>
+        <button type="button" class="btn secondary small" id="addPoItem">+ Adicionar item</button>
+        <datalist id="productNamesList"></datalist>
+
+        <div class="total-line">Custo total: R$ <span id="poTotal">0,00</span></div>
+        <div style="margin-top:12px;">
+          <button type="submit" class="btn">Registrar pedido</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Histórico de compras</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Nº pedido</th><th>Itens</th><th>Custo total</th></tr></thead>
+        <tbody id="purchaseOrdersBody"></tbody>
+      </table>
+      <div class="empty" id="purchaseOrdersEmpty" style="display:none;">Nenhum pedido registrado ainda.</div>
+    </div>
+  </section>
+
+  <!-- RELATORIOS -->
+  <section id="view-relatorios" class="view">
+    <div class="panel">
+      <h2>Filtrar período</h2>
+      <div class="row">
+        <div class="field"><label>De</label><input type="date" id="reportFrom"></div>
+        <div class="field"><label>Até</label><input type="date" id="reportTo"></div>
+        <div class="field" style="justify-content:flex-end;flex-direction:row;align-items:flex-end;">
+          <button type="button" class="btn" id="runReport">Gerar relatório</button>
+        </div>
+      </div>
+    </div>
+    <div class="cards" id="reportCards"></div>
+    <div class="panel">
+      <h2>Vendas no período</h2>
+      <table>
+        <thead><tr><th>Data</th><th>Cliente</th><th>Total</th><th>Pagamento</th><th>Status</th></tr></thead>
+        <tbody id="reportSalesBody"></tbody>
+      </table>
+      <div class="empty" id="reportEmpty" style="display:none;">Nenhuma venda no período selecionado.</div>
+      <button type="button" class="btn secondary" id="exportCsv" style="margin-top:12px;">Exportar CSV</button>
+    </div>
+  </section>
+
+  <!-- AUTOMACAO -->
+  <section id="view-automacao" class="view">
+    <div class="panel">
+      <h2>📲 Envio de mensagens no WhatsApp</h2>
+      <p class="hint">Use o botão <strong>WhatsApp</strong> na tela de Clientes, ou <strong>Cobrar</strong> nas vendas pendentes, para abrir uma mensagem já sugerida (com opção de 3 tons de texto) pronta para enviar — funciona hoje, é gratuito e não exige nenhum cadastro.</p>
+    </div>
+
+    <div class="panel">
+      <h2>⚙️ Disparo automático (API oficial do WhatsApp Business / Meta)</h2>
+      <div class="warn-box">
+        <strong>Antes de configurar, saiba:</strong><br>
+        1) Isso exige uma conta WhatsApp Business API aprovada pela Meta, com número verificado e um token de acesso.<br>
+        2) Mensagens iniciadas pela empresa (fora de uma conversa já aberta pelo cliente) precisam usar um <strong>modelo de mensagem (template) já aprovado pela Meta</strong> — não é possível mandar texto livre automaticamente.<br>
+        3) Há custo por mensagem enviada (cobrança "Utility", usada para lembretes, costuma ficar em torno de poucos centavos por conversa; "Marketing" é mais cara).<br>
+        4) O disparo automático só é verificado e executado quando você abre esta aba e clica em "Verificar e disparar".
+      </div>
+      <form id="automationForm">
+        <div class="row">
+          <div class="field"><label>Phone Number ID (Meta)</label><input type="text" id="metaPhoneId" placeholder="ex: 109876543210"></div>
+          <div class="field"><label>Access Token</label><input type="password" id="metaToken" placeholder="Token de acesso permanente"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Nome do template aprovado</label><input type="text" id="metaTemplateName" placeholder="ex: lembrete_pagamento"></div>
+          <div class="field"><label>Idioma do template</label><input type="text" id="metaTemplateLang" placeholder="pt_BR" value="pt_BR"></div>
+          <div class="field"><label>Disparar cobrança após quantos dias pendente?</label><input type="number" id="autoDays" min="1" value="3"></div>
+        </div>
+        <button type="submit" class="btn">Salvar configuração</button>
+      </form>
+      <div class="row" style="margin-top:14px;">
+        <button type="button" class="btn secondary" id="runAutomationBtn">Verificar pendências e disparar agora</button>
+      </div>
+      <div id="automationLog" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- MODAL: Compositor de mensagem WhatsApp -->
+<div class="modal-overlay" id="composerOverlay">
+  <div class="modal-box">
+    <h2>Enviar mensagem no WhatsApp</h2>
+    <p class="hint" id="composerCustomerInfo"></p>
+    <div class="field">
+      <label>Tipo de mensagem</label>
+      <select id="composerScenario">
+        <option value="cobranca">Cobrança de pendência</option>
+        <option value="agradecimento">Agradecimento pós-venda</option>
+        <option value="promocao">Promoção / novidade</option>
+        <option value="livre">Mensagem livre</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Sugestões de tom (estilo "melhorar com IA")</label>
+      <div class="tone-options">
+        <button type="button" class="tone-btn" onclick="applyTone('profissional')">🧑‍💼 Profissional</button>
+        <button type="button" class="tone-btn" onclick="applyTone('amigavel')">😊 Amigável</button>
+        <button type="button" class="tone-btn" onclick="applyTone('direto')">⚡ Direto</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Mensagem (edite à vontade antes de enviar)</label>
+      <textarea id="composerText"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" id="closeComposer">Cancelar</button>
+      <button type="button" class="btn secondary" id="copyComposerText">Copiar texto</button>
+      <button type="button" class="btn whatsapp" id="sendComposerWhatsapp">Enviar pelo WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /appRoot -->
+
+<script src="js/supabaseClient.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('pt-BR', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  initAuth();
+</script>
+</body>
+</html>
