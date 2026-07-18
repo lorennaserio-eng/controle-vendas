@@ -63,13 +63,15 @@ document.getElementById('productForm').addEventListener('submit', async e=>{
   const price = parseFloat(document.getElementById('productPrice').value);
   const stock = parseInt(document.getElementById('productStock').value, 10);
   const minStock = parseInt(document.getElementById('productMinStock').value || '5', 10);
+  const replenishDaysRaw = document.getElementById('productReplenishDays').value;
+  const replenishDays = replenishDaysRaw ? parseInt(replenishDaysRaw, 10) : null;
   if(!name || isNaN(price) || isNaN(stock)) return;
 
   try{
     if(id){
-      await apiUpdateProduct({id: Number(id), name, price, stock, minStock});
+      await apiUpdateProduct({id: Number(id), name, price, stock, minStock, replenishDays});
     } else {
-      await apiCreateProduct({name, price, stock, minStock});
+      await apiCreateProduct({name, price, stock, minStock, replenishDays});
     }
     await refreshAll();
     resetProductForm();
@@ -86,6 +88,7 @@ function resetProductForm(){
   document.getElementById('productFormTitle').textContent = 'Novo produto';
   document.getElementById('cancelProductEdit').style.display = 'none';
   document.getElementById('productMinStock').value = 5;
+  document.getElementById('productReplenishDays').value = '';
 }
 
 function editProduct(id){
@@ -96,6 +99,7 @@ function editProduct(id){
   document.getElementById('productPrice').value = p.price;
   document.getElementById('productStock').value = p.stock;
   document.getElementById('productMinStock').value = p.minStock || 5;
+  document.getElementById('productReplenishDays').value = p.replenishDays || '';
   document.getElementById('productFormTitle').textContent = 'Editar produto';
   document.getElementById('cancelProductEdit').style.display = 'inline-block';
   showView('produtos');
@@ -125,6 +129,7 @@ function renderProducts(){
       <td>R$ ${money(p.price)}</td>
       <td>R$ ${money(p.cost)}</td>
       <td>${p.stock} ${low ? '<span class="badge baixo">estoque baixo</span>' : ''}</td>
+      <td>${p.replenishDays ? `${p.replenishDays} dias` : '-'}</td>
       <td class="actions-cell">
         <button class="btn small secondary" onclick="editProduct(${p.id})">Editar</button>
         <button class="btn small danger" onclick="deleteProduct(${p.id})">Excluir</button>
@@ -213,13 +218,17 @@ document.getElementById('customerForm').addEventListener('submit', async e=>{
   const phone = document.getElementById('customerPhone').value.trim();
   const email = document.getElementById('customerEmail').value.trim();
   const birthDate = document.getElementById('customerBirthDate').value;
+  const skinType = document.getElementById('customerSkinType').value;
+  const address = document.getElementById('customerAddress').value.trim();
+  const notes = document.getElementById('customerNotes').value.trim();
+  const businessProspect = document.getElementById('customerBusinessProspect').checked;
   if(!name) return;
 
   try{
     if(id){
-      await apiUpdateCustomer({id: Number(id), name, phone, email, birthDate});
+      await apiUpdateCustomer({id: Number(id), name, phone, email, birthDate, skinType, address, notes, businessProspect});
     } else {
-      await apiCreateCustomer({name, phone, email, birthDate});
+      await apiCreateCustomer({name, phone, email, birthDate, skinType, address, notes, businessProspect});
     }
     await refreshAll();
     resetCustomerForm();
@@ -236,6 +245,10 @@ function resetCustomerForm(){
   document.getElementById('customerFormTitle').textContent = 'Novo cliente';
   document.getElementById('cancelCustomerEdit').style.display = 'none';
   document.getElementById('customerBirthDate').value = '';
+  document.getElementById('customerSkinType').value = '';
+  document.getElementById('customerAddress').value = '';
+  document.getElementById('customerNotes').value = '';
+  document.getElementById('customerBusinessProspect').checked = false;
 }
 
 function editCustomer(id){
@@ -246,6 +259,10 @@ function editCustomer(id){
   document.getElementById('customerPhone').value = c.phone || '';
   document.getElementById('customerEmail').value = c.email || '';
   document.getElementById('customerBirthDate').value = c.birthDate || '';
+  document.getElementById('customerSkinType').value = c.skinType || '';
+  document.getElementById('customerAddress').value = c.address || '';
+  document.getElementById('customerNotes').value = c.notes || '';
+  document.getElementById('customerBusinessProspect').checked = !!c.businessProspect;
   document.getElementById('customerFormTitle').textContent = 'Editar cliente';
   document.getElementById('cancelCustomerEdit').style.display = 'inline-block';
   showView('clientes');
@@ -274,11 +291,158 @@ function renderCustomers(){
       <td>${escapeHtml(c.phone||'-')}</td>
       <td>${escapeHtml(c.email||'-')}</td>
       <td>${c.birthDate ? formatDate(c.birthDate) : '-'}</td>
+      <td>${escapeHtml(c.skinType || '-')}</td>
       <td class="actions-cell">
+        <button class="btn small secondary" onclick="openClientDetail(${c.id})">Ver histórico</button>
         <button class="btn small whatsapp" onclick="openComposer({customerId:${c.id}})">WhatsApp</button>
         <button class="btn small secondary" onclick="editCustomer(${c.id})">Editar</button>
         <button class="btn small danger" onclick="deleteCustomer(${c.id})">Excluir</button>
       </td>`;
+    body.appendChild(tr);
+  });
+  renderReplenishReminders();
+  renderInactiveCustomers();
+  renderBusinessProspects();
+}
+
+function renderBusinessProspects(){
+  const body = document.getElementById('businessProspectsBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const list = state.customers.filter(c=>c.businessProspect);
+  document.getElementById('businessProspectsEmpty').style.display = list.length ? 'none' : 'block';
+  list.forEach(c=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.phone || '-')}</td>
+      <td class="actions-cell">${c.phone ? `<button class="btn small whatsapp" onclick="openComposer({customerId:${c.id}, scenario:'oportunidade'})">WhatsApp</button>` : ''}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+/* --- Ficha do cliente (histórico de compras + produtos utilizados) --- */
+function openClientDetail(id){
+  const c = state.customers.find(c=>c.id===id);
+  if(!c) return;
+  const vendas = state.sales.filter(s=>s.customerId===id).slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+  document.getElementById('clientDetailName').textContent = c.name + (c.businessProspect ? ' · 💼 potencial consultora' : '');
+  const infoParts = [c.phone || 'sem telefone', c.email || 'sem e-mail'];
+  if(c.birthDate) infoParts.push(`aniversário ${formatDate(c.birthDate)}`);
+  if(c.skinType) infoParts.push(`pele ${c.skinType}`);
+  if(c.address) infoParts.push(c.address);
+  document.getElementById('clientDetailInfo').textContent = infoParts.join(' · ');
+
+  const notesEl = document.getElementById('clientDetailNotes');
+  notesEl.style.display = c.notes ? 'block' : 'none';
+  notesEl.textContent = c.notes ? `Observações: ${c.notes}` : '';
+
+  const produtos = {};
+  vendas.forEach(s=>{
+    s.items.forEach(i=>{
+      if(!produtos[i.name]) produtos[i.name] = {qty:0, lastDate: s.date};
+      produtos[i.name].qty += i.qty;
+      if(s.date > produtos[i.name].lastDate) produtos[i.name].lastDate = s.date;
+    });
+  });
+  const produtosBody = document.getElementById('clientDetailProductsBody');
+  produtosBody.innerHTML = '';
+  const produtosList = Object.entries(produtos).sort((a,b)=>b[1].lastDate.localeCompare(a[1].lastDate));
+  document.getElementById('clientDetailProductsEmpty').style.display = produtosList.length ? 'none' : 'block';
+  produtosList.forEach(([name, d])=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(name)}</td><td>${d.qty}</td><td>${formatDate(d.lastDate)}</td>`;
+    produtosBody.appendChild(tr);
+  });
+
+  const salesBody = document.getElementById('clientDetailSalesBody');
+  salesBody.innerHTML = '';
+  document.getElementById('clientDetailSalesEmpty').style.display = vendas.length ? 'none' : 'block';
+  vendas.forEach(s=>{
+    const itemsStr = s.items.map(i=>`${i.name} x${i.qty}`).join(', ');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${formatDate(s.date)}</td>
+      <td>${escapeHtml(itemsStr)}</td>
+      <td>R$ ${money(s.total)}</td>
+      <td><span class="badge ${s.status==='Pago'?'pago':'pendente'}">${s.status}</span></td>`;
+    salesBody.appendChild(tr);
+  });
+
+  document.getElementById('clientDetailOverlay').classList.add('active');
+}
+document.getElementById('closeClientDetail').addEventListener('click', ()=>{
+  document.getElementById('clientDetailOverlay').classList.remove('active');
+});
+
+/* --- Lembrete: hora de repor --- */
+function renderReplenishReminders(){
+  const body = document.getElementById('replenishBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const hoje = todayISO();
+  const lembretes = [];
+
+  state.products.filter(p=>p.replenishDays).forEach(p=>{
+    const vendasProduto = state.sales.filter(s=>s.status==='Pago' && s.customerId && s.items.some(i=>i.productId===p.id));
+    const ultimaPorCliente = {};
+    vendasProduto.forEach(s=>{
+      if(!ultimaPorCliente[s.customerId] || s.date > ultimaPorCliente[s.customerId]) ultimaPorCliente[s.customerId] = s.date;
+    });
+    Object.entries(ultimaPorCliente).forEach(([customerId, lastDate])=>{
+      const dias = Math.floor((new Date(hoje) - new Date(lastDate)) / (1000*60*60*24));
+      if(dias >= p.replenishDays){
+        lembretes.push({customerId: Number(customerId), productName: p.name, lastDate, dias});
+      }
+    });
+  });
+
+  lembretes.sort((a,b)=>b.dias-a.dias);
+  document.getElementById('replenishEmpty').style.display = lembretes.length ? 'none' : 'block';
+  lembretes.forEach(l=>{
+    const c = state.customers.find(c=>c.id===l.customerId);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c ? c.name : 'Cliente removido')}</td>
+      <td>${escapeHtml(l.productName)}</td>
+      <td>${formatDate(l.lastDate)}</td>
+      <td>${l.dias} dias</td>
+      <td class="actions-cell">${c && c.phone ? `<button class="btn small whatsapp" onclick="openComposer({customerId:${c.id}, scenario:'reposicao', extra:{produto:'${escapeHtml(l.productName).replace(/'/g,"\\'")}'}})">WhatsApp</button>` : ''}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+/* --- Lembrete: cliente sumida --- */
+const CLIENTE_SUMIDA_DIAS = 60;
+function renderInactiveCustomers(){
+  const body = document.getElementById('inactiveCustomersBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const hoje = todayISO();
+
+  const ultimaCompraPorCliente = {};
+  state.sales.filter(s=>s.status==='Pago' && s.customerId).forEach(s=>{
+    if(!ultimaCompraPorCliente[s.customerId] || s.date > ultimaCompraPorCliente[s.customerId]) ultimaCompraPorCliente[s.customerId] = s.date;
+  });
+
+  const sumidas = Object.entries(ultimaCompraPorCliente)
+    .map(([customerId, lastDate])=>({
+      customerId: Number(customerId), lastDate,
+      dias: Math.floor((new Date(hoje) - new Date(lastDate)) / (1000*60*60*24))
+    }))
+    .filter(x=>x.dias >= CLIENTE_SUMIDA_DIAS)
+    .sort((a,b)=>b.dias-a.dias);
+
+  document.getElementById('inactiveCustomersEmpty').style.display = sumidas.length ? 'none' : 'block';
+  sumidas.forEach(x=>{
+    const c = state.customers.find(c=>c.id===x.customerId);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c ? c.name : 'Cliente removido')}</td>
+      <td>${formatDate(x.lastDate)}</td>
+      <td>${x.dias} dias</td>
+      <td class="actions-cell">${c && c.phone ? `<button class="btn small whatsapp" onclick="openComposer({customerId:${c.id}, scenario:'reengajamento'})">WhatsApp</button>` : ''}</td>`;
     body.appendChild(tr);
   });
 }
@@ -1044,6 +1208,21 @@ const MESSAGE_TEMPLATES = {
     amigavel: d => `Oi ${d.nome}! Temos uma promoção especial rolando e pensamos em você! Dá uma olhada quando puder 😉`,
     direto: d => `Olá ${d.nome}, promoção disponível. Confira nossas ofertas.`
   },
+  reposicao: {
+    profissional: d => `Olá ${d.nome}, tudo bem? Faz um tempinho que você comprou ${d.produto} e imagino que deve estar acabando. Posso te ajudar a repor?`,
+    amigavel: d => `Oi ${d.nome}! 😊 Lembrei de você — faz um tempo que comprou ${d.produto}, deve estar quase no fim, né? Bora repor?`,
+    direto: d => `Olá ${d.nome}, hora de repor ${d.produto}. Posso providenciar?`
+  },
+  reengajamento: {
+    profissional: d => `Olá ${d.nome}, faz um tempo que não tenho notícias suas! Gostaria de saber se posso ajudar com alguma novidade ou reposição de produtos.`,
+    amigavel: d => `Oi ${d.nome}! Tava com saudade 💕 Bora dar uma olhada nas novidades?`,
+    direto: d => `Olá ${d.nome}, faz tempo que você não compra. Posso te mostrar as novidades?`
+  },
+  oportunidade: {
+    profissional: d => `Olá ${d.nome}, tudo bem? Notei seu interesse pelos produtos Mary Kay e gostaria de te convidar para conhecer a oportunidade de se tornar uma consultora de beleza independente. Posso te contar mais detalhes?`,
+    amigavel: d => `Oi ${d.nome}! 😊 Já pensou em ganhar uma renda extra vendendo os produtos que você já ama? Bora bater um papo sobre a carreira Mary Kay?`,
+    direto: d => `Olá ${d.nome}, tenho uma oportunidade de carreira Mary Kay que pode te interessar. Podemos conversar?`
+  },
   livre: {
     profissional: d => `Olá ${d.nome}, `,
     amigavel: d => `Oi ${d.nome}! `,
@@ -1060,7 +1239,7 @@ function normalizePhone(phone){
   return digits;
 }
 
-function buildComposerData(customerId, saleId){
+function buildComposerData(customerId, saleId, extra){
   const c = state.customers.find(c=>c.id===customerId);
   const nome = c ? c.name.split(' ')[0] : 'cliente';
   let valor = '0,00', itens = '-';
@@ -1077,14 +1256,14 @@ function buildComposerData(customerId, saleId){
       itens = pendentes.map(s=>s.items.map(i=>i.name).join(', ')).join(' | ');
     }
   }
-  return {nome, valor, itens};
+  return {nome, valor, itens, ...(extra||{})};
 }
 
-function openComposer({customerId, saleId, scenario}){
+function openComposer({customerId, saleId, scenario, extra}){
   const c = state.customers.find(c=>c.id===customerId);
   if(!c){ alert('Cliente não encontrado.'); return; }
   if(!c.phone){ alert('Este cliente não tem telefone cadastrado. Edite o cliente e adicione um telefone antes de enviar.'); return; }
-  composerCtx = {customerId, saleId};
+  composerCtx = {customerId, saleId, extra};
   document.getElementById('composerCustomerInfo').textContent = `Para: ${c.name} (${c.phone})`;
   document.getElementById('composerScenario').value = scenario || 'cobranca';
   document.getElementById('composerText').value = '';
@@ -1093,7 +1272,7 @@ function openComposer({customerId, saleId, scenario}){
 
 function applyTone(tone){
   const scenario = document.getElementById('composerScenario').value;
-  const data = buildComposerData(composerCtx.customerId, composerCtx.saleId);
+  const data = buildComposerData(composerCtx.customerId, composerCtx.saleId, composerCtx.extra);
   const fn = (MESSAGE_TEMPLATES[scenario] || MESSAGE_TEMPLATES.livre)[tone];
   document.getElementById('composerText').value = fn ? fn(data) : '';
 }
@@ -1127,6 +1306,7 @@ function loadAutomationForm(){
   document.getElementById('metaPhoneId').value = s.metaPhoneId || '';
   document.getElementById('metaToken').value = s.metaToken || '';
   document.getElementById('metaTemplateName').value = s.metaTemplateName || '';
+  document.getElementById('metaBirthdayTemplateName').value = s.metaBirthdayTemplateName || '';
   document.getElementById('metaTemplateLang').value = s.metaTemplateLang || 'pt_BR';
   document.getElementById('autoDays').value = s.autoDays ?? 3;
   document.getElementById('automationLog').innerHTML = '';
@@ -1139,6 +1319,7 @@ document.getElementById('automationForm').addEventListener('submit', async e=>{
       meta_phone_id: document.getElementById('metaPhoneId').value.trim(),
       meta_token: document.getElementById('metaToken').value.trim(),
       meta_template_name: document.getElementById('metaTemplateName').value.trim(),
+      meta_birthday_template_name: document.getElementById('metaBirthdayTemplateName').value.trim(),
       meta_template_lang: document.getElementById('metaTemplateLang').value.trim() || 'pt_BR',
       auto_days: parseInt(document.getElementById('autoDays').value || '3', 10)
     });
@@ -1157,14 +1338,14 @@ function logAutomation(msg){
   log.prepend(line);
 }
 
-async function sendWhatsAppTemplate(settings, phone, variables){
+async function sendWhatsAppTemplate(settings, phone, templateName, variables){
   const url = `https://graph.facebook.com/v19.0/${settings.metaPhoneId}/messages`;
   const body = {
     messaging_product: 'whatsapp',
     to: phone,
     type: 'template',
     template: {
-      name: settings.metaTemplateName,
+      name: templateName,
       language: { code: settings.metaTemplateLang },
       components: [{
         type: 'body',
@@ -1187,36 +1368,74 @@ async function sendWhatsAppTemplate(settings, phone, variables){
 
 document.getElementById('runAutomationBtn').addEventListener('click', async ()=>{
   const s = state.settings || {};
-  if(!s.metaPhoneId || !s.metaToken || !s.metaTemplateName){
-    alert('Preencha e salve a configuração (Phone Number ID, Token e Nome do template) antes de disparar.');
+  if(!s.metaPhoneId || !s.metaToken){
+    alert('Preencha e salve a configuração (Phone Number ID e Token) antes de disparar.');
     return;
   }
+  if(!s.metaTemplateName && !s.metaBirthdayTemplateName){
+    alert('Preencha ao menos um template (cobrança ou aniversário) antes de disparar.');
+    return;
+  }
+
   const hoje = new Date();
-  const candidatos = state.sales.filter(sale=>{
-    if(sale.status!=='Pendente' || sale.notifiedAt || !sale.customerId) return false;
-    const dias = Math.floor((hoje - new Date(sale.date)) / (1000*60*60*24));
-    return dias >= (s.autoDays ?? 3);
-  });
 
-  if(!candidatos.length){
-    logAutomation('Nenhuma venda pendente atingiu o prazo configurado para disparo.');
-    return;
+  if(s.metaTemplateName){
+    const candidatos = state.sales.filter(sale=>{
+      if(sale.status!=='Pendente' || sale.notifiedAt || !sale.customerId) return false;
+      const dias = Math.floor((hoje - new Date(sale.date)) / (1000*60*60*24));
+      return dias >= (s.autoDays ?? 3);
+    });
+
+    if(!candidatos.length){
+      logAutomation('Nenhuma venda pendente atingiu o prazo configurado para disparo.');
+    }
+
+    for(const sale of candidatos){
+      const c = state.customers.find(c=>c.id===sale.customerId);
+      if(!c || !c.phone){
+        logAutomation(`Pulado: venda #${sale.id} sem telefone de cliente cadastrado.`);
+        continue;
+      }
+      const phone = normalizePhone(c.phone);
+      try{
+        await sendWhatsAppTemplate(s, phone, s.metaTemplateName, [c.name.split(' ')[0], money(sale.total)]);
+        await apiMarkSaleNotified(sale.id, todayISO());
+        logAutomation(`✅ Cobrança enviada para ${c.name} (venda #${sale.id}).`);
+      }catch(err){
+        logAutomation(`❌ Falha ao enviar cobrança para ${c.name}: ${err.message}. (Verifique token, template aprovado e possíveis bloqueios de CORS no navegador.)`);
+      }
+    }
   }
 
-  for(const sale of candidatos){
-    const c = state.customers.find(c=>c.id===sale.customerId);
-    if(!c || !c.phone){
-      logAutomation(`Pulado: venda #${sale.id} sem telefone de cliente cadastrado.`);
-      continue;
+  if(s.metaBirthdayTemplateName){
+    const anoAtual = hoje.getFullYear();
+    const mesHoje = hoje.getMonth() + 1;
+    const diaHoje = hoje.getDate();
+    const aniversariantes = state.customers.filter(c=>{
+      if(!c.birthDate || c.lastBirthdayGreetingYear === anoAtual) return false;
+      const [, m, d] = c.birthDate.split('-').map(Number);
+      return m === mesHoje && d === diaHoje;
+    });
+
+    if(!aniversariantes.length){
+      logAutomation('Nenhuma cliente faz aniversário hoje (ou já foi parabenizada este ano).');
     }
-    const phone = normalizePhone(c.phone);
-    try{
-      await sendWhatsAppTemplate(s, phone, [c.name.split(' ')[0], money(sale.total)]);
-      await apiMarkSaleNotified(sale.id, todayISO());
-      logAutomation(`✅ Mensagem enviada para ${c.name} (venda #${sale.id}).`);
-    }catch(err){
-      logAutomation(`❌ Falha ao enviar para ${c.name}: ${err.message}. (Verifique token, template aprovado e possíveis bloqueios de CORS no navegador.)`);
+
+    for(const c of aniversariantes){
+      if(!c.phone){
+        logAutomation(`Pulado: ${c.name} faz aniversário hoje mas não tem telefone cadastrado.`);
+        continue;
+      }
+      const phone = normalizePhone(c.phone);
+      try{
+        await sendWhatsAppTemplate(s, phone, s.metaBirthdayTemplateName, [c.name.split(' ')[0]]);
+        await apiMarkCustomerBirthdayGreeted(c.id, anoAtual);
+        logAutomation(`🎂 Parabéns enviado para ${c.name}.`);
+      }catch(err){
+        logAutomation(`❌ Falha ao enviar parabéns para ${c.name}: ${err.message}.`);
+      }
     }
   }
+
   await refreshAll();
 });

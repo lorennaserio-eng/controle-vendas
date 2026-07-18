@@ -41,6 +41,7 @@ create table if not exists products (
   cost numeric(10,2) not null default 0, -- preenchido automaticamente pelo último Pedido MK
   stock integer not null default 0,
   min_stock integer not null default 5,
+  replenish_days integer, -- se preenchido, gera lembrete de reposição N dias após a compra
   created_at timestamptz default now()
 );
 
@@ -51,6 +52,11 @@ create table if not exists customers (
   phone text,
   email text,
   birth_date date,
+  skin_type text, -- Normal, Seca, Oleosa, Mista, Sensível
+  address text,
+  notes text,
+  business_prospect boolean not null default false, -- potencial interesse em virar consultora MK
+  last_birthday_greeting_year integer, -- controla o disparo automático de aniversário (1x por ano)
   created_at timestamptz default now()
 );
 
@@ -137,6 +143,7 @@ create table if not exists settings (
   meta_phone_id text,
   meta_token text,
   meta_template_name text,
+  meta_birthday_template_name text,
   meta_template_lang text default 'pt_BR',
   auto_days integer default 3
 );

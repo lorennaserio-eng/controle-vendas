@@ -48,11 +48,15 @@ async function refreshAll(){
   }));
 
   state.products = (products.data||[]).map(p=>({
-    id: p.id, name: p.name, price: Number(p.price), cost: Number(p.cost || 0), stock: p.stock, minStock: p.min_stock
+    id: p.id, name: p.name, price: Number(p.price), cost: Number(p.cost || 0), stock: p.stock, minStock: p.min_stock,
+    replenishDays: p.replenish_days || null
   }));
 
   state.customers = (customers.data||[]).map(c=>({
-    id: c.id, name: c.name, phone: c.phone, email: c.email, birthDate: c.birth_date
+    id: c.id, name: c.name, phone: c.phone, email: c.email, birthDate: c.birth_date,
+    skinType: c.skin_type || '', address: c.address || '', notes: c.notes || '',
+    businessProspect: !!c.business_prospect,
+    lastBirthdayGreetingYear: c.last_birthday_greeting_year || null
   }));
 
   state.sales = (sales.data||[]).map(s=>{
@@ -89,6 +93,7 @@ async function refreshAll(){
     metaPhoneId: settingsRow.data.meta_phone_id || '',
     metaToken: settingsRow.data.meta_token || '',
     metaTemplateName: settingsRow.data.meta_template_name || '',
+    metaBirthdayTemplateName: settingsRow.data.meta_birthday_template_name || '',
     metaTemplateLang: settingsRow.data.meta_template_lang || 'pt_BR',
     autoDays: settingsRow.data.auto_days ?? 3
   } : {};
@@ -97,13 +102,13 @@ async function refreshAll(){
 /* ---------- Produtos ---------- */
 async function apiCreateProduct(p){
   const { error } = await supabaseClient.from('products').insert({
-    name: p.name, price: p.price, stock: p.stock, min_stock: p.minStock
+    name: p.name, price: p.price, stock: p.stock, min_stock: p.minStock, replenish_days: p.replenishDays || null
   });
   if(error) throw error;
 }
 async function apiUpdateProduct(p){
   const { error } = await supabaseClient.from('products').update({
-    name: p.name, price: p.price, stock: p.stock, min_stock: p.minStock
+    name: p.name, price: p.price, stock: p.stock, min_stock: p.minStock, replenish_days: p.replenishDays || null
   }).eq('id', p.id);
   if(error) throw error;
 }
@@ -115,18 +120,24 @@ async function apiDeleteProduct(id){
 /* ---------- Clientes ---------- */
 async function apiCreateCustomer(c){
   const { error } = await supabaseClient.from('customers').insert({
-    name: c.name, phone: c.phone, email: c.email, birth_date: c.birthDate || null
+    name: c.name, phone: c.phone, email: c.email, birth_date: c.birthDate || null, skin_type: c.skinType || null,
+    address: c.address || null, notes: c.notes || null, business_prospect: !!c.businessProspect
   });
   if(error) throw error;
 }
 async function apiUpdateCustomer(c){
   const { error } = await supabaseClient.from('customers').update({
-    name: c.name, phone: c.phone, email: c.email, birth_date: c.birthDate || null
+    name: c.name, phone: c.phone, email: c.email, birth_date: c.birthDate || null, skin_type: c.skinType || null,
+    address: c.address || null, notes: c.notes || null, business_prospect: !!c.businessProspect
   }).eq('id', c.id);
   if(error) throw error;
 }
 async function apiDeleteCustomer(id){
   const { error } = await supabaseClient.from('customers').delete().eq('id', id);
+  if(error) throw error;
+}
+async function apiMarkCustomerBirthdayGreeted(customerId, year){
+  const { error } = await supabaseClient.from('customers').update({ last_birthday_greeting_year: year }).eq('id', customerId);
   if(error) throw error;
 }
 

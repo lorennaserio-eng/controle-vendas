@@ -155,16 +155,17 @@
           <div class="field"><label>Preço (R$)</label><input type="number" id="productPrice" step="0.01" min="0" required></div>
           <div class="field"><label>Estoque</label><input type="number" id="productStock" step="1" min="0" required></div>
           <div class="field"><label>Estoque mínimo (alerta)</label><input type="number" id="productMinStock" step="1" min="0" value="5"></div>
+          <div class="field"><label>Dias até repor (opcional)</label><input type="number" id="productReplenishDays" step="1" min="1" placeholder="Ex: 30"></div>
         </div>
         <button type="submit" class="btn">Salvar produto</button>
         <button type="button" class="btn secondary" id="cancelProductEdit" style="display:none;">Cancelar edição</button>
       </form>
-      <p class="hint">O custo do produto (usado para calcular o lucro) é preenchido automaticamente pelo valor informado no último Pedido Mary Kay desse item.</p>
+      <p class="hint">O custo do produto (usado para calcular o lucro) é preenchido automaticamente pelo valor informado no último Pedido Mary Kay desse item. "Dias até repor" gera um lembrete na aba Clientes quando uma cliente provavelmente já usou o produto — deixe em branco para produtos que não fazem sentido repor (ex: brindes, catálogos).</p>
     </div>
     <div class="panel">
       <h2>Produtos cadastrados</h2>
       <table>
-        <thead><tr><th>Nome</th><th>Preço</th><th>Custo</th><th>Estoque</th><th></th></tr></thead>
+        <thead><tr><th>Nome</th><th>Preço</th><th>Custo</th><th>Estoque</th><th>Repor em</th><th></th></tr></thead>
         <tbody id="productsBody"></tbody>
       </table>
       <div class="empty" id="productsEmpty" style="display:none;">Nenhum produto cadastrado ainda.</div>
@@ -275,6 +276,30 @@
           <div class="field"><label>Telefone</label><input type="text" id="customerPhone"></div>
           <div class="field"><label>E-mail</label><input type="email" id="customerEmail"></div>
           <div class="field"><label>Data de nascimento</label><input type="date" id="customerBirthDate"></div>
+          <div class="field">
+            <label>Tipo de pele</label>
+            <select id="customerSkinType">
+              <option value="">Não informado</option>
+              <option value="Normal">Normal</option>
+              <option value="Seca">Seca</option>
+              <option value="Oleosa">Oleosa</option>
+              <option value="Mista">Mista</option>
+              <option value="Sensível">Sensível</option>
+            </select>
+          </div>
+          <div class="field"><label>Endereço</label><input type="text" id="customerAddress"></div>
+        </div>
+        <div class="row">
+          <div class="field" style="flex:1 1 100%;">
+            <label>Observações gerais</label>
+            <textarea id="customerNotes" style="min-height:60px;" placeholder="Ex: pele madura, prefere tons neutros, alergia a X..."></textarea>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="flex-direction:row;align-items:center;display:flex;gap:8px;">
+            <input type="checkbox" id="customerBusinessProspect" style="width:auto;">
+            💼 Potencial para carreira Mary Kay (cliente com interesse em virar consultora)
+          </label>
         </div>
         <button type="submit" class="btn">Salvar cliente</button>
         <button type="button" class="btn secondary" id="cancelCustomerEdit" style="display:none;">Cancelar edição</button>
@@ -283,10 +308,40 @@
     <div class="panel">
       <h2>Clientes cadastrados</h2>
       <table>
-        <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Aniversário</th><th></th></tr></thead>
+        <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Aniversário</th><th>Pele</th><th></th></tr></thead>
         <tbody id="customersBody"></tbody>
       </table>
       <div class="empty" id="customersEmpty" style="display:none;">Nenhum cliente cadastrado ainda.</div>
+    </div>
+
+    <div class="panel">
+      <h2>🔔 Hora de repor</h2>
+      <p class="hint">Clientes que provavelmente já usaram um produto marcado com "dias até repor" e não compraram de novo desde então.</p>
+      <table>
+        <thead><tr><th>Cliente</th><th>Produto</th><th>Comprou em</th><th>Dias desde a compra</th><th></th></tr></thead>
+        <tbody id="replenishBody"></tbody>
+      </table>
+      <div class="empty" id="replenishEmpty" style="display:none;">Nenhum lembrete de reposição no momento.</div>
+    </div>
+
+    <div class="panel">
+      <h2>😴 Clientes sumidas</h2>
+      <p class="hint">Clientes que já compraram antes mas estão há 60+ dias sem nenhuma compra nova.</p>
+      <table>
+        <thead><tr><th>Cliente</th><th>Última compra</th><th>Dias sem comprar</th><th></th></tr></thead>
+        <tbody id="inactiveCustomersBody"></tbody>
+      </table>
+      <div class="empty" id="inactiveCustomersEmpty" style="display:none;">Nenhuma cliente sumida no momento.</div>
+    </div>
+
+    <div class="panel">
+      <h2>💼 Oportunidade de negócio</h2>
+      <p class="hint">Clientes marcadas como potencial interesse em virar consultora Mary Kay.</p>
+      <table>
+        <thead><tr><th>Cliente</th><th>Telefone</th><th></th></tr></thead>
+        <tbody id="businessProspectsBody"></tbody>
+      </table>
+      <div class="empty" id="businessProspectsEmpty" style="display:none;">Nenhuma cliente marcada como potencial no momento.</div>
     </div>
   </section>
 
@@ -425,10 +480,12 @@
           <div class="field"><label>Access Token</label><input type="password" id="metaToken" placeholder="Token de acesso permanente"></div>
         </div>
         <div class="row">
-          <div class="field"><label>Nome do template aprovado</label><input type="text" id="metaTemplateName" placeholder="ex: lembrete_pagamento"></div>
+          <div class="field"><label>Nome do template aprovado (cobrança)</label><input type="text" id="metaTemplateName" placeholder="ex: lembrete_pagamento"></div>
+          <div class="field"><label>Nome do template aprovado (aniversário)</label><input type="text" id="metaBirthdayTemplateName" placeholder="ex: feliz_aniversario"></div>
           <div class="field"><label>Idioma do template</label><input type="text" id="metaTemplateLang" placeholder="pt_BR" value="pt_BR"></div>
           <div class="field"><label>Disparar cobrança após quantos dias pendente?</label><input type="number" id="autoDays" min="1" value="3"></div>
         </div>
+        <p class="hint">O template de aniversário é opcional — se preenchido, "Verificar pendências e disparar agora" também envia parabéns automaticamente para quem faz aniversário hoje (uma vez por ano por cliente).</p>
         <button type="submit" class="btn">Salvar configuração</button>
       </form>
       <div class="row" style="margin-top:14px;">
@@ -451,6 +508,9 @@
         <option value="cobranca">Cobrança de pendência</option>
         <option value="agradecimento">Agradecimento pós-venda</option>
         <option value="promocao">Promoção / novidade</option>
+        <option value="reposicao">Lembrete de reposição</option>
+        <option value="reengajamento">Reengajar cliente sumida</option>
+        <option value="oportunidade">Convite: carreira Mary Kay</option>
         <option value="livre">Mensagem livre</option>
       </select>
     </div>
@@ -470,6 +530,30 @@
       <button type="button" class="btn secondary" id="closeComposer">Cancelar</button>
       <button type="button" class="btn secondary" id="copyComposerText">Copiar texto</button>
       <button type="button" class="btn whatsapp" id="sendComposerWhatsapp">Enviar pelo WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Ficha do cliente -->
+<div class="modal-overlay" id="clientDetailOverlay">
+  <div class="modal-box" style="max-width:640px;">
+    <h2 id="clientDetailName">Ficha do cliente</h2>
+    <p class="hint" id="clientDetailInfo"></p>
+    <p class="hint" id="clientDetailNotes" style="display:none;"></p>
+    <h3 style="font-size:14px;margin-bottom:6px;">Produtos utilizados</h3>
+    <table>
+      <thead><tr><th>Produto</th><th>Qtd. comprada</th><th>Última compra</th></tr></thead>
+      <tbody id="clientDetailProductsBody"></tbody>
+    </table>
+    <div class="empty" id="clientDetailProductsEmpty" style="display:none;">Nenhuma compra registrada ainda.</div>
+    <h3 style="font-size:14px;margin:16px 0 6px;">Histórico de compras</h3>
+    <table>
+      <thead><tr><th>Data</th><th>Itens</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody id="clientDetailSalesBody"></tbody>
+    </table>
+    <div class="empty" id="clientDetailSalesEmpty" style="display:none;">Nenhuma compra registrada ainda.</div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" id="closeClientDetail">Fechar</button>
     </div>
   </div>
 </div>
