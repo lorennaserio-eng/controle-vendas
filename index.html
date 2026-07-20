@@ -125,12 +125,12 @@
     </div>
 
     <div class="panel">
-      <h2>📅 Próximos treinamentos</h2>
+      <h2>📅 Próximos eventos da equipe</h2>
       <table>
-        <thead><tr><th>Data</th><th>Título</th><th>Descrição</th></tr></thead>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Título</th><th>Descrição</th></tr></thead>
         <tbody id="upcomingTrainingsBody"></tbody>
       </table>
-      <div class="empty" id="upcomingTrainingsEmpty" style="display:none;">Nenhum treinamento agendado.</div>
+      <div class="empty" id="upcomingTrainingsEmpty" style="display:none;">Nenhum evento agendado.</div>
     </div>
 
     <div class="panel">
@@ -354,6 +354,35 @@
       </table>
       <div class="empty" id="followupsEmpty" style="display:none;">Nenhum acompanhamento pendente no momento.</div>
     </div>
+
+    <div class="panel">
+      <h2>📅 Atendimentos agendados</h2>
+      <p class="hint">Atendimento VIP e sessão de skincare com uma cliente específica. Só quem agendou pode concluir, cancelar ou excluir o próprio atendimento.</p>
+      <form id="appointmentForm">
+        <div class="row">
+          <div class="field"><label>Cliente</label>
+            <select id="appointmentCustomer" required>
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          <div class="field"><label>Tipo</label>
+            <select id="appointmentType">
+              <option value="vip">Atendimento VIP</option>
+              <option value="skincare">Sessão de skincare</option>
+            </select>
+          </div>
+          <div class="field"><label>Data</label><input type="date" id="appointmentDate" required></div>
+          <div class="field"><label>Horário (opcional)</label><input type="time" id="appointmentTime"></div>
+        </div>
+        <div class="field"><label>Observações (opcional)</label><input type="text" id="appointmentNotes"></div>
+        <button type="submit" class="btn">Agendar atendimento</button>
+      </form>
+      <table style="margin-top:14px;">
+        <thead><tr><th>Cliente</th><th>Tipo</th><th>Data</th><th>Status</th><th></th></tr></thead>
+        <tbody id="appointmentsBody"></tbody>
+      </table>
+      <div class="empty" id="appointmentsEmpty" style="display:none;">Nenhum atendimento agendado.</div>
+    </div>
   </section>
 
   <!-- CAMPANHAS DE VENDAS -->
@@ -535,21 +564,29 @@
     </div>
 
     <div class="panel">
-      <h2>📅 Agenda de treinamentos</h2>
+      <h2>📅 Agenda da equipe</h2>
       <form id="trainingForm">
         <div class="row">
+          <div class="field"><label>Tipo</label>
+            <select id="trainingType">
+              <option value="treinamento">Treinamento</option>
+              <option value="aula">Aula de maquiagem</option>
+              <option value="mentoria">Mentoria</option>
+              <option value="evento">Evento</option>
+            </select>
+          </div>
           <div class="field"><label>Título</label><input type="text" id="trainingTitle" required></div>
           <div class="field"><label>Data</label><input type="date" id="trainingDate" required></div>
           <div class="field"><label>Horário (opcional)</label><input type="time" id="trainingTime"></div>
         </div>
         <div class="field"><label>Descrição (opcional)</label><input type="text" id="trainingDescription"></div>
-        <button type="submit" class="btn">Adicionar treinamento</button>
+        <button type="submit" class="btn">Adicionar à agenda</button>
       </form>
       <table style="margin-top:14px;">
-        <thead><tr><th>Data</th><th>Título</th><th>Descrição</th><th></th></tr></thead>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Título</th><th>Descrição</th><th></th></tr></thead>
         <tbody id="trainingsBody"></tbody>
       </table>
-      <div class="empty" id="trainingsEmpty" style="display:none;">Nenhum treinamento agendado.</div>
+      <div class="empty" id="trainingsEmpty" style="display:none;">Nenhum evento agendado.</div>
     </div>
   </section>
 
@@ -608,6 +645,7 @@
         <option value="oportunidade">Convite: carreira Mary Kay</option>
         <option value="acompanhamento">Acompanhamento 2+2+2</option>
         <option value="aniversario">Aniversário</option>
+        <option value="atendimento">Lembrete de atendimento</option>
         <option value="livre">Mensagem livre</option>
       </select>
     </div>
@@ -649,6 +687,12 @@
       <tbody id="clientDetailSalesBody"></tbody>
     </table>
     <div class="empty" id="clientDetailSalesEmpty" style="display:none;">Nenhuma compra registrada ainda.</div>
+    <h3 style="font-size:14px;margin:16px 0 6px;">Atendimentos</h3>
+    <table>
+      <thead><tr><th>Data</th><th>Tipo</th><th>Status</th></tr></thead>
+      <tbody id="clientDetailAppointmentsBody"></tbody>
+    </table>
+    <div class="empty" id="clientDetailAppointmentsEmpty" style="display:none;">Nenhum atendimento agendado ainda.</div>
     <div class="modal-actions">
       <button type="button" class="btn secondary" id="closeClientDetail">Fechar</button>
     </div>

@@ -136,14 +136,30 @@ create table if not exists campaign_goals (
   unique(campaign_id, seller_id)
 );
 
--- Agenda de treinamentos (criada pela diretora, visível para toda a equipe)
+-- Agenda da equipe (treinamento/aula/mentoria/evento) — criada pela
+-- diretora, visível para toda a equipe.
 create table if not exists trainings (
   id bigint generated always as identity primary key,
   title text not null,
   description text,
+  type text not null default 'treinamento', -- treinamento, aula, mentoria, evento
   training_date date not null,
   training_time time,
   created_by uuid references auth.users(id) default auth.uid(),
+  created_at timestamptz default now()
+);
+
+-- Atendimentos com cliente (VIP, sessão de skincare). Qualquer pessoa
+-- da equipe agenda; só quem agendou edita/exclui o próprio atendimento.
+create table if not exists appointments (
+  id bigint generated always as identity primary key,
+  customer_id bigint references customers(id) on delete cascade,
+  type text not null, -- 'vip' ou 'skincare'
+  appointment_date date not null,
+  appointment_time time,
+  notes text,
+  status text not null default 'agendado', -- agendado, concluido, cancelado
+  seller_id uuid references auth.users(id) default auth.uid(),
   created_at timestamptz default now()
 );
 
@@ -427,6 +443,7 @@ alter table settings enable row level security;
 alter table trainings enable row level security;
 alter table followups enable row level security;
 alter table campaign_goals enable row level security;
+alter table appointments enable row level security;
 
 create policy "profiles_select" on profiles for select using (auth.role() = 'authenticated');
 create policy "profiles_update_own" on profiles for update using (auth.uid() = id);
@@ -472,3 +489,9 @@ create policy "campaign_goals_select" on campaign_goals for select using (auth.r
 create policy "campaign_goals_insert_own" on campaign_goals for insert with check (auth.uid() = seller_id);
 create policy "campaign_goals_update_own" on campaign_goals for update using (auth.uid() = seller_id);
 create policy "campaign_goals_delete_own" on campaign_goals for delete using (auth.uid() = seller_id);
+
+-- Atendimentos: toda a equipe vê e agenda, só quem agendou edita/exclui.
+create policy "appointments_select" on appointments for select using (auth.role() = 'authenticated');
+create policy "appointments_insert_own" on appointments for insert with check (auth.uid() = seller_id);
+create policy "appointments_update_own" on appointments for update using (auth.uid() = seller_id);
+create policy "appointments_delete_own" on appointments for delete using (auth.uid() = seller_id);

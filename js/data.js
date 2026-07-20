@@ -5,11 +5,11 @@
 
 let state = {
   products: [], customers: [], sales: [], campaigns: [],
-  stockMovements: [], purchaseOrders: [], settings: {}, profiles: [], trainings: [], followups: [], campaignGoals: []
+  stockMovements: [], purchaseOrders: [], settings: {}, profiles: [], trainings: [], followups: [], campaignGoals: [], appointments: []
 };
 
 async function refreshAll(){
-  const [products, customers, sales, saleItems, campaigns, stockMovements, purchaseOrders, poItems, settingsRow, profiles, trainings, followups, campaignGoals] = await Promise.all([
+  const [products, customers, sales, saleItems, campaigns, stockMovements, purchaseOrders, poItems, settingsRow, profiles, trainings, followups, campaignGoals, appointments] = await Promise.all([
     supabaseClient.from('products').select('*').order('name'),
     supabaseClient.from('customers').select('*').order('name'),
     supabaseClient.from('sales').select('*').order('sale_date', {ascending:true}),
@@ -23,9 +23,10 @@ async function refreshAll(){
     supabaseClient.from('trainings').select('*').order('training_date'),
     supabaseClient.from('followups').select('*'),
     supabaseClient.from('campaign_goals').select('*'),
+    supabaseClient.from('appointments').select('*').order('appointment_date'),
   ]);
 
-  [products, customers, sales, saleItems, campaigns, stockMovements, purchaseOrders, poItems, settingsRow, profiles, trainings, followups, campaignGoals].forEach(r=>{
+  [products, customers, sales, saleItems, campaigns, stockMovements, purchaseOrders, poItems, settingsRow, profiles, trainings, followups, campaignGoals, appointments].forEach(r=>{
     if(r.error) console.error('Erro ao carregar dados do Supabase:', r.error.message);
   });
 
@@ -81,6 +82,11 @@ async function refreshAll(){
     sellerName: profileById[g.seller_id] || 'Consultora'
   }));
 
+  state.appointments = (appointments.data||[]).map(a=>({
+    id: a.id, customerId: a.customer_id, type: a.type, date: a.appointment_date, time: a.appointment_time,
+    notes: a.notes, status: a.status, sellerId: a.seller_id
+  }));
+
   state.stockMovements = (stockMovements.data||[]).map(m=>({
     id: m.id, date: m.move_date, productId: m.product_id, productName: m.product_name,
     type: m.type, qty: m.qty, reason: m.reason, stockAfter: m.stock_after
@@ -92,7 +98,7 @@ async function refreshAll(){
   }));
 
   state.trainings = (trainings.data||[]).map(t=>({
-    id: t.id, title: t.title, description: t.description, date: t.training_date, time: t.training_time
+    id: t.id, title: t.title, description: t.description, type: t.type || 'treinamento', date: t.training_date, time: t.training_time
   }));
 
   state.followups = (followups.data||[]).map(f=>({
@@ -228,12 +234,30 @@ async function apiSaveSettings(patch){
 /* ---------- Treinamentos (agenda da equipe) ---------- */
 async function apiCreateTraining(t){
   const { error } = await supabaseClient.from('trainings').insert({
-    title: t.title, description: t.description || null, training_date: t.date, training_time: t.time || null
+    title: t.title, description: t.description || null, type: t.type || 'treinamento',
+    training_date: t.date, training_time: t.time || null
   });
   if(error) throw error;
 }
 async function apiDeleteTraining(id){
   const { error } = await supabaseClient.from('trainings').delete().eq('id', id);
+  if(error) throw error;
+}
+
+/* ---------- Atendimentos (VIP / skincare) ---------- */
+async function apiCreateAppointment(a){
+  const { error } = await supabaseClient.from('appointments').insert({
+    customer_id: a.customerId, type: a.type, appointment_date: a.date, appointment_time: a.time || null,
+    notes: a.notes || null, seller_id: currentUser.id
+  });
+  if(error) throw error;
+}
+async function apiUpdateAppointmentStatus(id, status){
+  const { error } = await supabaseClient.from('appointments').update({ status }).eq('id', id);
+  if(error) throw error;
+}
+async function apiDeleteAppointment(id){
+  const { error } = await supabaseClient.from('appointments').delete().eq('id', id);
   if(error) throw error;
 }
 

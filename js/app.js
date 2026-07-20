@@ -310,6 +310,88 @@ function renderCustomers(){
   renderInactiveCustomers();
   renderBusinessProspects();
   renderFollowups();
+  populateAppointmentCustomerSelect();
+  renderAppointments();
+}
+
+/* --- Atendimentos (VIP / skincare) --- */
+const APPOINTMENT_TYPE_LABELS = { vip: 'Atendimento VIP', skincare: 'Sessão de skincare' };
+
+function populateAppointmentCustomerSelect(){
+  const sel = document.getElementById('appointmentCustomer');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Selecione...</option>';
+  state.customers.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+document.getElementById('appointmentForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const customerId = document.getElementById('appointmentCustomer').value;
+  const type = document.getElementById('appointmentType').value;
+  const date = document.getElementById('appointmentDate').value;
+  const time = document.getElementById('appointmentTime').value;
+  const notes = document.getElementById('appointmentNotes').value.trim();
+  if(!customerId || !date) return;
+  try{
+    await apiCreateAppointment({customerId: Number(customerId), type, date, time, notes});
+    await refreshAll();
+    document.getElementById('appointmentForm').reset();
+    renderAppointments();
+  }catch(err){
+    alert('Erro ao agendar atendimento: ' + err.message);
+  }
+});
+
+async function setAppointmentStatus(id, status){
+  try{
+    await apiUpdateAppointmentStatus(id, status);
+    await refreshAll();
+    renderAppointments();
+  }catch(err){
+    alert('Erro ao atualizar atendimento: ' + err.message);
+  }
+}
+
+async function deleteAppointment(id){
+  if(!confirm('Excluir este atendimento?')) return;
+  try{
+    await apiDeleteAppointment(id);
+    await refreshAll();
+    renderAppointments();
+  }catch(err){
+    alert('Erro ao excluir atendimento: ' + err.message);
+  }
+}
+
+function renderAppointments(){
+  const body = document.getElementById('appointmentsBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const list = state.appointments.filter(a=>a.status==='agendado').slice().sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('appointmentsEmpty').style.display = list.length ? 'none' : 'block';
+  list.forEach(a=>{
+    const c = state.customers.find(c=>c.id===a.customerId);
+    const podeGerenciar = currentUser && a.sellerId === currentUser.id;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c ? c.name : 'Cliente removido')}</td>
+      <td>${APPOINTMENT_TYPE_LABELS[a.type] || a.type}</td>
+      <td>${formatDate(a.date)}${a.time ? ' às '+a.time.slice(0,5) : ''}</td>
+      <td><span class="badge pendente">Agendado</span></td>
+      <td class="actions-cell">
+        ${c && c.phone ? `<button class="btn small whatsapp" onclick="openComposer({customerId:${c.id}, scenario:'atendimento', extra:{tipoAtendimento:'${jsAttrEscape(APPOINTMENT_TYPE_LABELS[a.type]||a.type)}', dataAtendimento:'${jsAttrEscape(formatDate(a.date))}'}})">WhatsApp</button>` : ''}
+        ${podeGerenciar ? `<button class="btn small secondary" onclick="setAppointmentStatus(${a.id}, 'concluido')">Concluir</button>` : ''}
+        ${podeGerenciar ? `<button class="btn small secondary" onclick="setAppointmentStatus(${a.id}, 'cancelado')">Cancelar</button>` : ''}
+        ${podeGerenciar ? `<button class="btn small danger" onclick="deleteAppointment(${a.id})">Excluir</button>` : ''}
+      </td>`;
+    body.appendChild(tr);
+  });
 }
 
 /* --- Acompanhamento pós-venda (Método 2+2+2) --- */
@@ -453,6 +535,21 @@ function openClientDetail(id){
       <td>R$ ${money(s.total)}</td>
       <td><span class="badge ${s.status==='Pago'?'pago':'pendente'}">${s.status}</span></td>`;
     salesBody.appendChild(tr);
+  });
+
+  const apptsBody = document.getElementById('clientDetailAppointmentsBody');
+  const appts = state.appointments.filter(a=>a.customerId===id).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  apptsBody.innerHTML = '';
+  document.getElementById('clientDetailAppointmentsEmpty').style.display = appts.length ? 'none' : 'block';
+  const APPT_STATUS_BADGE = {agendado:'pendente', concluido:'pago', cancelado:'baixo'};
+  const APPT_STATUS_LABEL = {agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado'};
+  appts.forEach(a=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${formatDate(a.date)}${a.time ? ' às '+a.time.slice(0,5) : ''}</td>
+      <td>${APPOINTMENT_TYPE_LABELS[a.type] || a.type}</td>
+      <td><span class="badge ${APPT_STATUS_BADGE[a.status] || 'pendente'}">${APPT_STATUS_LABEL[a.status] || a.status}</span></td>`;
+    apptsBody.appendChild(tr);
   });
 
   document.getElementById('clientDetailOverlay').classList.add('active');
@@ -1034,7 +1131,11 @@ function renderTeamPerformance(monthKey){
   });
 }
 
-/* --- Próximos treinamentos (visível para toda a equipe) --- */
+/* --- Próximos eventos da equipe (visível para toda a equipe) --- */
+const TRAINING_TYPE_LABELS = {
+  treinamento: 'Treinamento', aula: 'Aula de maquiagem', mentoria: 'Mentoria', evento: 'Evento'
+};
+
 function renderUpcomingTrainings(){
   const body = document.getElementById('upcomingTrainingsBody');
   if(!body) return;
@@ -1046,6 +1147,7 @@ function renderUpcomingTrainings(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${formatDate(t.date)}${t.time ? ' às '+t.time.slice(0,5) : ''}</td>
+      <td>${TRAINING_TYPE_LABELS[t.type] || t.type}</td>
       <td>${escapeHtml(t.title)}</td>
       <td>${escapeHtml(t.description || '-')}</td>`;
     body.appendChild(tr);
@@ -1142,23 +1244,24 @@ function renderMonthlyEvolution(){
 document.getElementById('trainingForm').addEventListener('submit', async e=>{
   e.preventDefault();
   const title = document.getElementById('trainingTitle').value.trim();
+  const type = document.getElementById('trainingType').value;
   const date = document.getElementById('trainingDate').value;
   const time = document.getElementById('trainingTime').value;
   const description = document.getElementById('trainingDescription').value.trim();
   if(!title || !date) return;
   try{
-    await apiCreateTraining({title, date, time, description});
+    await apiCreateTraining({title, type, date, time, description});
     await refreshAll();
     document.getElementById('trainingForm').reset();
     renderTrainings();
     renderUpcomingTrainings();
   }catch(err){
-    alert('Erro ao criar treinamento: ' + err.message);
+    alert('Erro ao criar evento: ' + err.message);
   }
 });
 
 async function deleteTraining(id){
-  if(!confirm('Excluir este treinamento?')) return;
+  if(!confirm('Excluir este evento?')) return;
   try{
     await apiDeleteTraining(id);
     await refreshAll();
@@ -1179,6 +1282,7 @@ function renderTrainings(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${formatDate(t.date)}${t.time ? ' às '+t.time.slice(0,5) : ''}</td>
+      <td>${TRAINING_TYPE_LABELS[t.type] || t.type}</td>
       <td>${escapeHtml(t.title)}</td>
       <td>${escapeHtml(t.description || '-')}</td>
       <td class="actions-cell"><button class="btn small danger" onclick="deleteTraining(${t.id})">Excluir</button></td>`;
@@ -1525,6 +1629,11 @@ const MESSAGE_TEMPLATES = {
     profissional: d => `Parabéns pelo seu dia, ${d.nome}! 🎉 Desejo muitas felicidades. Para comemorar, que tal conhecer ${d.sugestao || 'nossos produtos'}? Se quiser, te conto mais.`,
     amigavel: d => `Parabéns, ${d.nome}! 🎂🎉 Muitas felicidades! Separei uma ideia de presentinho pra você: ${d.sugestao || 'dá uma olhada nas novidades'} 💕`,
     direto: d => `Parabéns, ${d.nome}! 🎉 Sugestão de presente: ${d.sugestao || 'nossos produtos'}.`
+  },
+  atendimento: {
+    profissional: d => `Olá ${d.nome}, tudo bem? Passando para confirmar seu ${d.tipoAtendimento} agendado para ${d.dataAtendimento}. Podemos confirmar o horário?`,
+    amigavel: d => `Oi ${d.nome}! 😊 Só lembrando do seu ${d.tipoAtendimento} marcado pra ${d.dataAtendimento} — te espero!`,
+    direto: d => `Olá ${d.nome}, lembrete: ${d.tipoAtendimento} em ${d.dataAtendimento}.`
   },
   livre: {
     profissional: d => `Olá ${d.nome}, `,
