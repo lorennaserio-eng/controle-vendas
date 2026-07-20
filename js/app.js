@@ -319,10 +319,7 @@ const FOLLOWUP_STAGES = {
   '2_meses': {due:'due2Meses', done:'done2Meses', note:'note2Meses', label:'2 meses'}
 };
 
-function renderFollowups(){
-  const body = document.getElementById('followupsBody');
-  if(!body) return;
-  body.innerHTML = '';
+function getPendingFollowups(){
   const hoje = todayISO();
   const pendentes = [];
 
@@ -338,6 +335,15 @@ function renderFollowups(){
   });
 
   pendentes.sort((a,b)=> a.followup[a.keys.due].localeCompare(b.followup[b.keys.due]));
+  return pendentes;
+}
+
+function renderFollowups(){
+  const body = document.getElementById('followupsBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const hoje = todayISO();
+  const pendentes = getPendingFollowups();
 
   document.getElementById('followupsEmpty').style.display = pendentes.length ? 'none' : 'block';
   pendentes.forEach(p=>{
@@ -1310,6 +1316,96 @@ function renderReportDefaults(){
     document.getElementById('reportTo').value = todayISO();
   }
   runReport();
+  renderReportStock();
+  renderReportCustomers();
+  renderReportFollowups();
+  renderReportTeam();
+  renderReportGoals();
+}
+
+function renderReportStock(){
+  const unidades = state.products.reduce((sum,p)=>sum+(p.stock||0), 0);
+  const valorEstoque = state.products.reduce((sum,p)=>sum+(p.stock||0)*(p.price||0), 0);
+  const baixo = state.products.filter(p=>p.stock <= (p.minStock ?? 5)).length;
+  document.getElementById('reportStockCards').innerHTML = `
+    <div class="card"><div class="label">Valor do estoque</div><div class="value">R$ ${money(valorEstoque)}</div></div>
+    <div class="card"><div class="label">Unidades em estoque</div><div class="value">${unidades}</div></div>
+    <div class="card"><div class="label">Produtos com estoque baixo</div><div class="value ${baixo>0?'danger':''}">${baixo}</div></div>
+  `;
+}
+
+function renderReportCustomers(){
+  const hoje = todayISO();
+  const ultimaCompraPorCliente = {};
+  state.sales.filter(s=>s.status==='Pago' && s.customerId).forEach(s=>{
+    if(!ultimaCompraPorCliente[s.customerId] || s.date > ultimaCompraPorCliente[s.customerId]) ultimaCompraPorCliente[s.customerId] = s.date;
+  });
+  let ativos = 0, inativos = 0;
+  Object.values(ultimaCompraPorCliente).forEach(lastDate=>{
+    const dias = Math.floor((new Date(hoje) - new Date(lastDate)) / (1000*60*60*24));
+    if(dias >= CLIENTE_SUMIDA_DIAS) inativos++; else ativos++;
+  });
+  const semCompra = state.customers.length - Object.keys(ultimaCompraPorCliente).length;
+  document.getElementById('reportCustomersCards').innerHTML = `
+    <div class="card"><div class="label">Clientes ativos</div><div class="value">${ativos}</div></div>
+    <div class="card"><div class="label">Clientes inativos (60+ dias)</div><div class="value ${inativos>0?'warning':''}">${inativos}</div></div>
+    <div class="card"><div class="label">Nunca compraram</div><div class="value">${semCompra}</div></div>
+  `;
+}
+
+function renderReportFollowups(){
+  const pendentes = getPendingFollowups();
+  const atrasados = pendentes.filter(p=>{
+    const dias = Math.floor((new Date(todayISO()) - new Date(p.followup[p.keys.due])) / (1000*60*60*24));
+    return dias > 0;
+  }).length;
+  document.getElementById('reportFollowupsCards').innerHTML = `
+    <div class="card"><div class="label">Contatos pendentes</div><div class="value ${pendentes.length>0?'warning':''}">${pendentes.length}</div></div>
+    <div class="card"><div class="label">Atrasados</div><div class="value ${atrasados>0?'danger':''}">${atrasados}</div></div>
+  `;
+}
+
+function renderReportTeam(){
+  const monthKey = currentMonthKey();
+  const vendasMes = state.sales.filter(s=>s.status==='Pago' && s.date.startsWith(monthKey));
+  const faturamentoMes = vendasMes.reduce((sum,s)=>sum+s.total,0);
+  const vendedoresAtivos = new Set(vendasMes.map(s=>s.sellerId).filter(Boolean)).size;
+  document.getElementById('reportTeamCards').innerHTML = `
+    <div class="card"><div class="label">Faturamento da equipe (mês)</div><div class="value">R$ ${money(faturamentoMes)}</div></div>
+    <div class="card"><div class="label">Vendas da equipe (mês)</div><div class="value">${vendasMes.length}</div></div>
+    <div class="card"><div class="label">Vendedoras com venda no mês</div><div class="value">${vendedoresAtivos}</div></div>
+  `;
+}
+
+function renderReportGoals(){
+  const goal = state.settings.monthlyGoal || 0;
+  const body = document.getElementById('reportGoalsBody');
+  body.innerHTML = '';
+  document.getElementById('reportGoalsEmpty').style.display = goal ? 'none' : 'block';
+  if(!goal) return;
+
+  const months = [];
+  for(let i=5;i>=0;i--){
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth()-i);
+    months.push(d.toISOString().slice(0,7));
+  }
+  months.slice().reverse().forEach(m=>{
+    const faturamentoMes = state.sales
+      .filter(s=>s.status==='Pago' && s.date.startsWith(m))
+      .reduce((sum,s)=>sum+s.total,0);
+    const bateu = faturamentoMes >= goal;
+    const [y,mo] = m.split('-');
+    const label = new Date(Number(y), Number(mo)-1, 1).toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${label}</td>
+      <td>R$ ${money(faturamentoMes)}</td>
+      <td>R$ ${money(goal)}</td>
+      <td><span class="badge ${bateu ? 'pago' : 'pendente'}">${bateu ? '✅ Bateu a meta' : '❌ Não bateu'}</span></td>`;
+    body.appendChild(tr);
+  });
 }
 
 function getFilteredSales(){

@@ -470,6 +470,40 @@
       <div class="empty" id="reportEmpty" style="display:none;">Nenhuma venda no período selecionado.</div>
       <button type="button" class="btn secondary" id="exportCsv" style="margin-top:12px;">Exportar CSV</button>
     </div>
+
+    <div class="panel">
+      <h2>📦 Estoque</h2>
+      <div class="cards" id="reportStockCards"></div>
+      <button type="button" class="btn secondary small" onclick="showView('produtos')">Ver produtos</button>
+    </div>
+
+    <div class="panel">
+      <h2>👥 Clientes ativos e inativos</h2>
+      <div class="cards" id="reportCustomersCards"></div>
+      <button type="button" class="btn secondary small" onclick="showView('clientes')">Ver clientes</button>
+    </div>
+
+    <div class="panel">
+      <h2>📞 Acompanhamento 2+2+2</h2>
+      <div class="cards" id="reportFollowupsCards"></div>
+      <button type="button" class="btn secondary small" onclick="showView('clientes')">Ver acompanhamentos</button>
+    </div>
+
+    <div class="panel">
+      <h2>👩‍💼 Produção da equipe (mês atual)</h2>
+      <div class="cards" id="reportTeamCards"></div>
+      <button type="button" class="btn secondary small" onclick="showView('dashboard')">Ver ranking completo</button>
+    </div>
+
+    <div class="panel">
+      <h2>🎯 Metas alcançadas</h2>
+      <p class="hint">Compara o faturamento de cada mês com a meta mensal configurada atualmente no Dashboard.</p>
+      <table>
+        <thead><tr><th>Mês</th><th>Faturamento</th><th>Meta</th><th>Resultado</th></tr></thead>
+        <tbody id="reportGoalsBody"></tbody>
+      </table>
+      <div class="empty" id="reportGoalsEmpty" style="display:none;">Defina uma meta mensal no Dashboard para acompanhar aqui.</div>
+    </div>
   </section>
 
   <!-- GESTÃO DA EQUIPE (visível só para diretoras) -->
