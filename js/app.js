@@ -26,6 +26,12 @@ document.querySelectorAll('table').forEach(table=>{
   wrap.appendChild(table);
 });
 
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
 /* ================= BOOT (chamado depois do login) ================= */
 let currentUserRole = 'consultora';
 
