@@ -29,7 +29,7 @@ function showAuthScreen(){
 
 async function onLoggedIn(){
   document.getElementById('authOverlay').classList.remove('active');
-  document.getElementById('appRoot').style.display = 'block';
+  document.getElementById('appRoot').style.display = 'flex';
   document.getElementById('currentUserLabel').textContent = currentUser.email;
   document.getElementById('authMessage').textContent = '';
   await bootApp();

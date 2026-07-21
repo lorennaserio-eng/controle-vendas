@@ -44,11 +44,37 @@ async function bootApp(){
 }
 
 /* ---------- Navegação ---------- */
-document.querySelectorAll('nav button').forEach(btn=>{
-  btn.addEventListener('click', ()=> showView(btn.dataset.view));
+document.querySelectorAll('nav button[data-view]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    showView(btn.dataset.view);
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('sidebarBackdrop').classList.remove('active');
+  });
 });
+/* --- Barra lateral: recolher (desktop) e abrir/fechar (celular) --- */
+const sidebarEl = document.getElementById('sidebar');
+const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
+const sidebarToggleBtn = document.getElementById('sidebarToggle');
+
+if(localStorage.getItem('sidebarCollapsed') === '1') sidebarEl.classList.add('collapsed');
+
+sidebarToggleBtn.addEventListener('click', ()=>{
+  if(window.innerWidth > 768){
+    const collapsed = sidebarEl.classList.toggle('collapsed');
+    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    sidebarToggleBtn.title = collapsed ? 'Expandir menu' : 'Recolher menu';
+  } else {
+    const open = sidebarEl.classList.toggle('mobile-open');
+    sidebarBackdropEl.classList.toggle('active', open);
+  }
+});
+sidebarBackdropEl.addEventListener('click', ()=>{
+  sidebarEl.classList.remove('mobile-open');
+  sidebarBackdropEl.classList.remove('active');
+});
+
 function showView(name){
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  document.querySelectorAll('nav button[data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+name));
   if(name==='dashboard') renderDashboard();
   if(name==='produtos') renderProducts();
@@ -56,7 +82,6 @@ function showView(name){
   if(name==='clientes') renderCustomers();
   if(name==='campanhas') renderCampaigns();
   if(name==='pedidos') renderPurchaseView();
-  if(name==='relatorios') renderReportDefaults();
   if(name==='automacao') loadAutomationForm();
   if(name==='equipe') renderTeamManagement();
 }
@@ -312,6 +337,7 @@ function renderCustomers(){
   renderFollowups();
   populateAppointmentCustomerSelect();
   renderAppointments();
+  renderBirthdays();
 }
 
 /* --- Atendimentos (VIP / skincare) --- */
@@ -829,7 +855,6 @@ function renderDashboard(){
   `;
 
   renderGoalProgress(faturamentoMes);
-  renderBirthdays();
   renderTeamPerformance(monthKey);
   renderUpcomingTrainings();
 
@@ -878,6 +903,8 @@ function renderDashboard(){
       body.appendChild(tr);
     });
   }
+
+  renderReportDefaults();
 }
 
 /* --- Meta mensal --- */
