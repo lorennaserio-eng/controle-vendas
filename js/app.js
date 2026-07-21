@@ -82,7 +82,7 @@ function showView(name){
   if(name==='clientes') renderCustomers();
   if(name==='campanhas') renderCampaigns();
   if(name==='pedidos') renderPurchaseView();
-  if(name==='automacao') loadAutomationForm();
+  if(name==='automacao'){ loadAutomationForm(); renderMessageQueue(); }
   if(name==='equipe') renderTeamManagement();
 }
 
@@ -585,10 +585,7 @@ document.getElementById('closeClientDetail').addEventListener('click', ()=>{
 });
 
 /* --- Lembrete: hora de repor --- */
-function renderReplenishReminders(){
-  const body = document.getElementById('replenishBody');
-  if(!body) return;
-  body.innerHTML = '';
+function getReplenishReminders(){
   const hoje = todayISO();
   const lembretes = [];
 
@@ -607,6 +604,14 @@ function renderReplenishReminders(){
   });
 
   lembretes.sort((a,b)=>b.dias-a.dias);
+  return lembretes;
+}
+
+function renderReplenishReminders(){
+  const body = document.getElementById('replenishBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const lembretes = getReplenishReminders();
   document.getElementById('replenishEmpty').style.display = lembretes.length ? 'none' : 'block';
   lembretes.forEach(l=>{
     const c = state.customers.find(c=>c.id===l.customerId);
@@ -623,10 +628,7 @@ function renderReplenishReminders(){
 
 /* --- Lembrete: cliente sumida --- */
 const CLIENTE_SUMIDA_DIAS = 60;
-function renderInactiveCustomers(){
-  const body = document.getElementById('inactiveCustomersBody');
-  if(!body) return;
-  body.innerHTML = '';
+function getInactiveCustomers(){
   const hoje = todayISO();
 
   const ultimaCompraPorCliente = {};
@@ -634,14 +636,20 @@ function renderInactiveCustomers(){
     if(!ultimaCompraPorCliente[s.customerId] || s.date > ultimaCompraPorCliente[s.customerId]) ultimaCompraPorCliente[s.customerId] = s.date;
   });
 
-  const sumidas = Object.entries(ultimaCompraPorCliente)
+  return Object.entries(ultimaCompraPorCliente)
     .map(([customerId, lastDate])=>({
       customerId: Number(customerId), lastDate,
       dias: Math.floor((new Date(hoje) - new Date(lastDate)) / (1000*60*60*24))
     }))
     .filter(x=>x.dias >= CLIENTE_SUMIDA_DIAS)
     .sort((a,b)=>b.dias-a.dias);
+}
 
+function renderInactiveCustomers(){
+  const body = document.getElementById('inactiveCustomersBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const sumidas = getInactiveCustomers();
   document.getElementById('inactiveCustomersEmpty').style.display = sumidas.length ? 'none' : 'block';
   sumidas.forEach(x=>{
     const c = state.customers.find(c=>c.id===x.customerId);
@@ -1739,145 +1747,109 @@ document.getElementById('sendComposerWhatsapp').addEventListener('click', ()=>{
   document.getElementById('composerOverlay').classList.remove('active');
 });
 
-/* ================= WHATSAPP: automação (API oficial Meta) ================= */
+/* ================= WHATSAPP: fila de mensagens de hoje (manual, sem API paga) ================= */
 function loadAutomationForm(){
   const s = state.settings || {};
-  document.getElementById('metaPhoneId').value = s.metaPhoneId || '';
-  document.getElementById('metaToken').value = s.metaToken || '';
-  document.getElementById('metaTemplateName').value = s.metaTemplateName || '';
-  document.getElementById('metaBirthdayTemplateName').value = s.metaBirthdayTemplateName || '';
-  document.getElementById('metaTemplateLang').value = s.metaTemplateLang || 'pt_BR';
   document.getElementById('autoDays').value = s.autoDays ?? 3;
-  document.getElementById('automationLog').innerHTML = '';
 }
 
-document.getElementById('automationForm').addEventListener('submit', async e=>{
-  e.preventDefault();
+document.getElementById('saveAutoDaysBtn').addEventListener('click', async ()=>{
   try{
-    await apiSaveSettings({
-      meta_phone_id: document.getElementById('metaPhoneId').value.trim(),
-      meta_token: document.getElementById('metaToken').value.trim(),
-      meta_template_name: document.getElementById('metaTemplateName').value.trim(),
-      meta_birthday_template_name: document.getElementById('metaBirthdayTemplateName').value.trim(),
-      meta_template_lang: document.getElementById('metaTemplateLang').value.trim() || 'pt_BR',
-      auto_days: parseInt(document.getElementById('autoDays').value || '3', 10)
-    });
+    await apiSaveSettings({ auto_days: parseInt(document.getElementById('autoDays').value || '3', 10) });
     await refreshAll();
-    alert('Configuração salva.');
+    renderMessageQueue();
   }catch(err){
-    alert('Erro ao salvar configuração: ' + err.message);
+    alert('Erro ao salvar: ' + err.message);
   }
 });
 
-function logAutomation(msg){
-  const log = document.getElementById('automationLog');
-  const line = document.createElement('div');
-  line.className = 'log-line';
-  line.textContent = `[${new Date().toLocaleTimeString('pt-BR')}] ${msg}`;
-  log.prepend(line);
-}
-
-async function sendWhatsAppTemplate(settings, phone, templateName, variables){
-  const url = `https://graph.facebook.com/v19.0/${settings.metaPhoneId}/messages`;
-  const body = {
-    messaging_product: 'whatsapp',
-    to: phone,
-    type: 'template',
-    template: {
-      name: templateName,
-      language: { code: settings.metaTemplateLang },
-      components: [{
-        type: 'body',
-        parameters: variables.map(v => ({ type: 'text', text: v }))
-      }]
-    }
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${settings.metaToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-  const json = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(json?.error?.message || `Erro HTTP ${res.status}`);
-  return json;
-}
-
-document.getElementById('runAutomationBtn').addEventListener('click', async ()=>{
-  const s = state.settings || {};
-  if(!s.metaPhoneId || !s.metaToken){
-    alert('Preencha e salve a configuração (Phone Number ID e Token) antes de disparar.');
-    return;
-  }
-  if(!s.metaTemplateName && !s.metaBirthdayTemplateName){
-    alert('Preencha ao menos um template (cobrança ou aniversário) antes de disparar.');
-    return;
-  }
-
+function getTodayBirthdays(){
   const hoje = new Date();
+  const mesHoje = hoje.getMonth() + 1;
+  const diaHoje = hoje.getDate();
+  return state.customers.filter(c=>{
+    if(!c.birthDate) return false;
+    const [, m, d] = c.birthDate.split('-').map(Number);
+    return m === mesHoje && d === diaHoje;
+  });
+}
 
-  if(s.metaTemplateName){
-    const candidatos = state.sales.filter(sale=>{
-      if(sale.status!=='Pendente' || sale.notifiedAt || !sale.customerId) return false;
-      const dias = Math.floor((hoje - new Date(sale.date)) / (1000*60*60*24));
-      return dias >= (s.autoDays ?? 3);
+function getPendingPaymentReminders(){
+  const hoje = todayISO();
+  const prazo = state.settings.autoDays ?? 3;
+  return state.sales.filter(s=>{
+    if(s.status!=='Pendente' || !s.customerId) return false;
+    if(s.notifiedAt === hoje) return false;
+    const dias = Math.floor((new Date(hoje) - new Date(s.date)) / (1000*60*60*24));
+    return dias >= prazo;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function renderMessageQueue(){
+  const body = document.getElementById('messageQueueBody');
+  if(!body) return;
+  body.innerHTML = '';
+  const hoje = todayISO();
+  const itens = [];
+
+  getTodayBirthdays().forEach(c=>{
+    itens.push({ tipo:'Aniversário', customer:c, detalhe:'Hoje é aniversário dela', scenario:'aniversario', extra:{sugestao: suggestGiftForCustomer(c.id)} });
+  });
+
+  getPendingPaymentReminders().forEach(s=>{
+    const c = state.customers.find(c=>c.id===s.customerId);
+    if(!c) return;
+    const dias = Math.floor((new Date(hoje) - new Date(s.date)) / (1000*60*60*24));
+    itens.push({ tipo:'Cobrança', customer:c, detalhe:`Pendente há ${dias} dia(s) — R$ ${money(s.total)}`, scenario:'cobranca', saleId:s.id });
+  });
+
+  getReplenishReminders().forEach(l=>{
+    const c = state.customers.find(c=>c.id===l.customerId);
+    if(!c) return;
+    itens.push({ tipo:'Reposição', customer:c, detalhe:`${l.productName} — comprou há ${l.dias} dia(s)`, scenario:'reposicao', extra:{produto:l.productName} });
+  });
+
+  getInactiveCustomers().forEach(x=>{
+    const c = state.customers.find(c=>c.id===x.customerId);
+    if(!c) return;
+    itens.push({ tipo:'Cliente sumida', customer:c, detalhe:`${x.dias} dia(s) sem comprar`, scenario:'reengajamento' });
+  });
+
+  getPendingFollowups().forEach(p=>{
+    const dias = Math.floor((new Date(hoje) - new Date(p.followup[p.keys.due])) / (1000*60*60*24));
+    itens.push({
+      tipo:'Acompanhamento 2+2+2', customer:p.customer,
+      detalhe:`${p.keys.label} — ${dias<=0?'hoje':dias+' dia(s) atrasado'}`,
+      scenario:'acompanhamento', extra:{estagio:p.keys.label}, saleId: p.sale ? p.sale.id : undefined
     });
+  });
 
-    if(!candidatos.length){
-      logAutomation('Nenhuma venda pendente atingiu o prazo configurado para disparo.');
+  document.getElementById('messageQueueEmpty').style.display = itens.length ? 'none' : 'block';
+  itens.forEach(item=>{
+    const c = item.customer;
+    const tr = document.createElement('tr');
+    const tipoTd = document.createElement('td');
+    tipoTd.innerHTML = `<span class="badge pendente">${escapeHtml(item.tipo)}</span>`;
+    const nomeTd = document.createElement('td');
+    nomeTd.textContent = c.name;
+    const detalheTd = document.createElement('td');
+    detalheTd.textContent = item.detalhe;
+    const acoesTd = document.createElement('td');
+    acoesTd.className = 'actions-cell';
+    if(c.phone){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small whatsapp';
+      btn.textContent = 'Enviar';
+      btn.addEventListener('click', ()=> openComposer({ customerId:c.id, saleId:item.saleId, scenario:item.scenario, extra:item.extra }));
+      acoesTd.appendChild(btn);
+    } else {
+      acoesTd.innerHTML = '<span class="hint">sem telefone</span>';
     }
-
-    for(const sale of candidatos){
-      const c = state.customers.find(c=>c.id===sale.customerId);
-      if(!c || !c.phone){
-        logAutomation(`Pulado: venda #${sale.id} sem telefone de cliente cadastrado.`);
-        continue;
-      }
-      const phone = normalizePhone(c.phone);
-      try{
-        await sendWhatsAppTemplate(s, phone, s.metaTemplateName, [c.name.split(' ')[0], money(sale.total)]);
-        await apiMarkSaleNotified(sale.id, todayISO());
-        logAutomation(`✅ Cobrança enviada para ${c.name} (venda #${sale.id}).`);
-      }catch(err){
-        logAutomation(`❌ Falha ao enviar cobrança para ${c.name}: ${err.message}. (Verifique token, template aprovado e possíveis bloqueios de CORS no navegador.)`);
-      }
-    }
-  }
-
-  if(s.metaBirthdayTemplateName){
-    const anoAtual = hoje.getFullYear();
-    const mesHoje = hoje.getMonth() + 1;
-    const diaHoje = hoje.getDate();
-    const aniversariantes = state.customers.filter(c=>{
-      if(!c.birthDate || c.lastBirthdayGreetingYear === anoAtual) return false;
-      const [, m, d] = c.birthDate.split('-').map(Number);
-      return m === mesHoje && d === diaHoje;
-    });
-
-    if(!aniversariantes.length){
-      logAutomation('Nenhuma cliente faz aniversário hoje (ou já foi parabenizada este ano).');
-    }
-
-    for(const c of aniversariantes){
-      if(!c.phone){
-        logAutomation(`Pulado: ${c.name} faz aniversário hoje mas não tem telefone cadastrado.`);
-        continue;
-      }
-      const phone = normalizePhone(c.phone);
-      try{
-        await sendWhatsAppTemplate(s, phone, s.metaBirthdayTemplateName, [c.name.split(' ')[0]]);
-        await apiMarkCustomerBirthdayGreeted(c.id, anoAtual);
-        logAutomation(`🎂 Parabéns enviado para ${c.name}.`);
-      }catch(err){
-        logAutomation(`❌ Falha ao enviar parabéns para ${c.name}: ${err.message}.`);
-      }
-    }
-  }
-
-  await refreshAll();
-});
+    tr.appendChild(tipoTd); tr.appendChild(nomeTd); tr.appendChild(detalheTd); tr.appendChild(acoesTd);
+    body.appendChild(tr);
+  });
+}
 
 document.getElementById('downloadBackupBtn').addEventListener('click', ()=>{
   const backup = {
