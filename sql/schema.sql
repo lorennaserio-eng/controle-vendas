@@ -1,5 +1,5 @@
 -- ================================================================
--- Schema do Controle de Vendas Mary Kay - Supabase
+-- Schema do Impulsiona (Mary Kay) - Supabase
 -- Como usar: abra seu projeto em supabase.com > SQL Editor > New query,
 -- cole este arquivo inteiro e clique em "Run". Pode rodar de uma vez só.
 -- ================================================================

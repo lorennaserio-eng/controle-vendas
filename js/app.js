@@ -1882,7 +1882,7 @@ document.getElementById('runAutomationBtn').addEventListener('click', async ()=>
 document.getElementById('downloadBackupBtn').addEventListener('click', ()=>{
   const backup = {
     exportedAt: new Date().toISOString(),
-    source: 'Controle de Vendas Mary Kay',
+    source: 'Impulsiona (Mary Kay)',
     data: {
       products: state.products,
       customers: state.customers,
@@ -1902,7 +1902,7 @@ document.getElementById('downloadBackupBtn').addEventListener('click', ()=>{
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `backup_controle_vendas_${todayISO()}.json`;
+  a.download = `backup_impulsiona_${todayISO()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 });

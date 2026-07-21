@@ -82,7 +82,7 @@ document.getElementById('toggleAuthMode').addEventListener('click', ()=>{
   document.getElementById('authPhoneField').style.display = isLogin ? 'block' : 'none';
   document.getElementById('authRoleField').style.display = isLogin ? 'block' : 'none';
   document.getElementById('toggleAuthMode').textContent = isLogin ? 'Já tenho conta' : 'Criar uma conta nova';
-  document.getElementById('authTitle').textContent = isLogin ? 'Criar conta' : 'Entrar no Controle de Vendas';
+  document.getElementById('authTitle').textContent = isLogin ? 'Criar conta' : 'Entrar no Impulsiona';
   document.getElementById('authMessage').textContent = '';
 });
 

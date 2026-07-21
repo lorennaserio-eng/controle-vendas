@@ -30,7 +30,7 @@ header{
   gap:10px;
   box-shadow:0 2px 10px rgba(166,30,77,.25);
 }
-header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.2px;}
+header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;gap:8px;}
 #userBar{display:flex;align-items:center;gap:10px;font-size:13px;}
 #userBar button{
   background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.45);
@@ -223,11 +223,4 @@ textarea{
 }
 @media(max-width:640px){
   .total-line{text-align:left;}
-}
-.page-decoration{
-  display:block;
-  max-width:280px;
-  width:60%;
-  margin:32px auto 8px;
-  opacity:.9;
 }

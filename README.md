@@ -1,7 +1,8 @@
-# Controle de Vendas — Mary Kay
+# Impulsiona — Mary Kay
 
-App de controle de vendas, estoque, clientes e pedidos, agora com banco de
-dados na nuvem (Supabase) e login para você e sua equipe.
+App de gestão para Consultoras e Diretoras Mary Kay: vendas, estoque,
+clientes, produção da equipe e acompanhamento, com banco de dados na
+nuvem (Supabase) e login para você e sua equipe.
 
 ## Passo a passo para colocar no ar
 
